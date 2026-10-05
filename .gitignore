@@ -89,6 +89,10 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# We need to make sure oauth_client.json is protected by .gitignore.
+oauth_client.json
+
 =======
 # Byte-compiled / optimized / DLL files
 __pycache__/
