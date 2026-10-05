@@ -93,6 +93,9 @@ Thumbs.db
 # We need to make sure oauth_client.json is protected by .gitignore.
 oauth_client.json
 
+# protecting the token
+token.json
+
 =======
 # Byte-compiled / optimized / DLL files
 __pycache__/
