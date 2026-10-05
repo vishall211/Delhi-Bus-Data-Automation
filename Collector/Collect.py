@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 from googleapiclient.http import MediaIoBaseDownload
 
-from Collector.drive import (
+from drive import (
     get_drive_service,
     find_folder,
     upload_csv
