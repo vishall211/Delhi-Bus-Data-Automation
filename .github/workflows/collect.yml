@@ -2,12 +2,25 @@ name: Delhi Bus Data Collection
 
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: "Job to execute"
+        required: false
+        default: "collect"
+        type: choice
+        options:
+          - collect
+          - compile
+          - all
   schedule:
     - cron: "*/5 * * * *"
+    - cron: "5 18 * * *"
 
 jobs:
   collect:
-    if: github.event.schedule == '*/5 * * * *' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event.schedule == '*/5 * * * *' ||
+      (github.event_name == 'workflow_dispatch' && (inputs.target == 'collect' || inputs.target == 'all' || !inputs.target))
     runs-on: ubuntu-latest
 
     steps:
@@ -29,7 +42,9 @@ jobs:
         run: python Collector/Collect.py
 
   compile:
-    if: github.event.schedule == '5 18 * * *'
+    if: >-
+      github.event.schedule == '5 18 * * *' ||
+      (github.event_name == 'workflow_dispatch' && (inputs.target == 'compile' || inputs.target == 'all'))
     runs-on: ubuntu-latest
 
     steps:
@@ -49,5 +64,8 @@ jobs:
           GOOGLE_DRIVE_TOKEN_B64: ${{ secrets.GOOGLE_DRIVE_TOKEN_B64 }}
         run: python Compiler/Compile.py
 
+<<<<<<< Updated upstream
 
   
+=======
+>>>>>>> Stashed changes
