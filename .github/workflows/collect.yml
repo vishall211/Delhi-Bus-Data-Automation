@@ -1,13 +1,13 @@
 name: Delhi Bus Data Collection
 
 on:
+  repository_dispatch:
+    types: [collect]
+
   workflow_dispatch:
-  schedule:
-    - cron: "*/5 * * * *"
 
 jobs:
   collect:
-    if: github.event.schedule == '*/5 * * * *' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
@@ -27,24 +27,3 @@ jobs:
           DELHI_API_KEY: ${{ secrets.DELHI_API_KEY }}
           GOOGLE_DRIVE_TOKEN_B64: ${{ secrets.GOOGLE_DRIVE_TOKEN_B64 }}
         run: python Collector/Collect.py
-
-  compile:
-    if: github.event.schedule == '5 18 * * *'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Compile daily data
-        env:
-          GOOGLE_DRIVE_TOKEN_B64: ${{ secrets.GOOGLE_DRIVE_TOKEN_B64 }}
-        run: python Compiler/Compile.py
