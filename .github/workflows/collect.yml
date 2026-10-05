@@ -24,5 +24,5 @@ jobs:
       - name: Collect Delhi bus data
         env:
           DELHI_API_KEY: ${{ secrets.DELHI_API_KEY }}
-          GOOGLE_DRIVE_TOKEN_JSON: ${{ secrets.GOOGLE_DRIVE_TOKEN_JSON }}
+          GOOGLE_DRIVE_TOKEN_B64: ${{ secrets.GOOGLE_DRIVE_TOKEN_B64 }}
         run: python Collector/Collect.py
