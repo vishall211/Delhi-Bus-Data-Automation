@@ -1,3 +1,95 @@
+# Python Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# Byte-compiled / optimized / cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Environment variables & secrets
+.env
+.env.*
+*.env
+*secret*
+*credential*
+*.pem
+*.key
+
+# Google Service Account JSON & Keys
+*.json
+!requirements*.json
+
+# Data files & generated outputs
+data/
+temp/
+*.csv
+*.parquet
+*.feather
+*.pb
+
+# Operating System & IDE
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+<<<<<<< HEAD
+# Python Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# Byte-compiled / optimized / cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Environment variables & secrets
+.env
+.env.*
+*.env
+*secret*
+*credential*
+*.pem
+*.key
+
+# Google Service Account JSON & Keys
+*.json
+!requirements*.json
+
+# Data files & generated outputs
+data/
+temp/
+*.csv
+*.parquet
+*.feather
+*.pb
+
+# Operating System & IDE
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+=======
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -218,3 +310,4 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+>>>>>>> 2dee7e249bf71af63580a2acea2803f8f5749c95
