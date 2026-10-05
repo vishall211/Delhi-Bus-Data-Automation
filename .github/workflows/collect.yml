@@ -1,9 +1,9 @@
 name: Delhi Bus Data Collection
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: "*/5 * * * *"
-  workflow_dispatch:
 
 jobs:
   collect:
@@ -19,12 +19,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
+        run: pip install -r requirements.txt
 
       - name: Collect Delhi bus data
         env:
           DELHI_API_KEY: ${{ secrets.DELHI_API_KEY }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-        run: |
-          python Collector/Collect.py
+        run: python Collector/Collect.py
