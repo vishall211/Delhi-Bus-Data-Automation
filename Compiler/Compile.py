@@ -1,90 +1,150 @@
 import os
-import glob
+import sys
+import io
 import pandas as pd
+
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from googleapiclient.http import MediaIoBaseDownload
 
-# ============================================================
-# PROJECT PATHS
-# ============================================================
-
+# Allow importing Collector/drive.py
 PROJECT_DIR = os.path.dirname(
     os.path.dirname(
         os.path.abspath(__file__)
     )
 )
 
-RAW_FOLDER = os.path.join(
-    PROJECT_DIR,
-    "data",
-    "raw"
+sys.path.insert(
+    0,
+    os.path.join(PROJECT_DIR, "Collector")
 )
 
-FINAL_FOLDER = os.path.join(
-    PROJECT_DIR,
-    "data",
-    "final"
-)
-
-os.makedirs(
-    FINAL_FOLDER,
-    exist_ok=True
+from drive import (
+    get_drive_service,
+    find_folder,
+    upload_csv
 )
 
 
 # ============================================================
-# TODAY'S DATA
+# TODAY
 # ============================================================
 
 today = datetime.now(
     ZoneInfo("Asia/Kolkata")
-).strftime("%Y-%m-%d")
+)
 
-today_folder = os.path.join(
-    RAW_FOLDER,
-    today
+date_folder = today.strftime("%d %b %Y")
+
+print("Compiling data for:", date_folder)
+
+
+# ============================================================
+# GOOGLE DRIVE
+# ============================================================
+
+service = get_drive_service()
+
+main_folder_id = find_folder(
+    service,
+    "Delhi Bus Data Automation"
+)
+
+raw_folder_id = find_folder(
+    service,
+    "Raw",
+    main_folder_id
+)
+
+today_folder_id = find_folder(
+    service,
+    date_folder,
+    raw_folder_id
+)
+
+final_folder_id = find_folder(
+    service,
+    "Final",
+    main_folder_id
 )
 
 
 # ============================================================
-# FIND SNAPSHOTS
+# FIND RAW CSV FILES
 # ============================================================
 
-files = glob.glob(
-    os.path.join(
-        today_folder,
-        "*.csv"
-    )
+query = (
+    f"'{today_folder_id}' in parents "
+    "and mimeType = 'text/csv' "
+    "and trashed = false"
 )
 
-print(f"Found {len(files)} snapshot files.")
+results = service.files().list(
+    q=query,
+    spaces="drive",
+    fields="files(id,name)",
+    pageSize=1000
+).execute()
+
+files = results.get("files", [])
+
+print("Found", len(files), "snapshot files.")
 
 
 if not files:
-
     print("No snapshot files found.")
-
-    exit()
+    sys.exit(0)
 
 
 # ============================================================
-# COMBINE SNAPSHOTS
+# DOWNLOAD AND COMBINE
 # ============================================================
 
 dataframes = []
 
+temp_folder = os.path.join(
+    PROJECT_DIR,
+    "temp_compile"
+)
+
+os.makedirs(
+    temp_folder,
+    exist_ok=True
+)
+
+
 for file in files:
 
-    print(
-        "Reading:",
-        os.path.basename(file)
+    print("Downloading:", file["name"])
+
+    request = service.files().get_media(
+        fileId=file["id"]
     )
 
-    df = pd.read_csv(file)
+    buffer = io.BytesIO()
+
+    downloader = MediaIoBaseDownload(
+        buffer,
+        request
+    )
+
+    done = False
+
+    while not done:
+
+        _, done = downloader.next_chunk()
+
+    buffer.seek(0)
+
+    df = pd.read_csv(buffer)
 
     dataframes.append(df)
 
+
+# ============================================================
+# COMBINE
+# ============================================================
 
 final_df = pd.concat(
     dataframes,
@@ -93,60 +153,66 @@ final_df = pd.concat(
 
 
 # ============================================================
-# REMOVE EXACT DUPLICATES
+# REMOVE DUPLICATES
 # ============================================================
 
 before = len(final_df)
 
-if "entity_id" in final_df.columns and "timestamp" in final_df.columns:
+if (
+    "entity_id" in final_df.columns
+    and
+    "timestamp" in final_df.columns
+):
 
     final_df = final_df.drop_duplicates(
-
-        subset=["entity_id", "timestamp"]
-
+        subset=[
+            "entity_id",
+            "timestamp"
+        ]
     )
 
 else:
 
     final_df = final_df.drop_duplicates()
 
+
 after = len(final_df)
 
-duplicates_removed = before - after
-
 
 # ============================================================
-# SORT DATA
+# SORT
 # ============================================================
 
-if "entity_id" in final_df.columns and "timestamp" in final_df.columns:
+if (
+    "entity_id" in final_df.columns
+    and
+    "timestamp" in final_df.columns
+):
 
     final_df = final_df.sort_values(
-
-        by=["entity_id", "timestamp"]
-
+        by=[
+            "entity_id",
+            "timestamp"
+        ]
     )
 
 elif "timestamp" in final_df.columns:
 
     final_df = final_df.sort_values(
-
         by="timestamp"
-
     )
 
 
 # ============================================================
-# SAVE FINAL CSV
+# SAVE FINAL FILE
 # ============================================================
 
 filename = (
-    f"Delhi Bus - "
-    f"{datetime.strptime(today, '%Y-%m-%d').strftime('%d %b %Y')}.csv"
+    f"Delhi Bus - {date_folder}.csv"
 )
 
 filepath = os.path.join(
-    FINAL_FOLDER,
+    temp_folder,
     filename
 )
 
@@ -157,15 +223,27 @@ final_df.to_csv(
 
 
 # ============================================================
+# UPLOAD TO GOOGLE DRIVE
+# ============================================================
+
+print("Uploading final CSV to Google Drive...")
+
+uploaded = upload_csv(
+    service,
+    filepath,
+    filename,
+    final_folder_id
+)
+
+
+# ============================================================
 # RESULT
 # ============================================================
 
 print()
 print("Compilation successful!")
-print("Date:", today)
 print("Snapshots:", len(files))
-
-print("\n\nRecords before deduplication:", before)
+print("Records before deduplication:", before)
 print("Final unique records:", after)
-print("Duplicate records removed:", duplicates_removed)
-print("Saved:", filepath)
+print("Duplicates removed:", before - after)
+print("Final file:", uploaded["name"])
