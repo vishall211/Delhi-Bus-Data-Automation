@@ -14,13 +14,18 @@ SCOPES = [
 
 def get_drive_service():
 
-    token_json = os.environ.get("GOOGLE_DRIVE_TOKEN_JSON")
+    token_b64 = os.environ.get("GOOGLE_DRIVE_TOKEN_B64")
 
-    if token_json:
+    if token_b64:
+        import base64
+
+        token_json = base64.b64decode(token_b64).decode("utf-8")
+
         credentials = Credentials.from_authorized_user_info(
             json.loads(token_json),
             SCOPES
         )
+
     else:
         credentials = Credentials.from_authorized_user_file(
             "token.json",
