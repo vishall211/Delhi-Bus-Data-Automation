@@ -1,125 +1,191 @@
 import os
 import io
+import requests
 import pandas as pd
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from googleapiclient.http import MediaIoBaseDownload
+from google.protobuf.json_format import MessageToDict
+from google.transit import gtfs_realtime_pb2
 
 from drive import (
     get_drive_service,
     find_folder,
+    get_or_create_folder,
     upload_csv
 )
 
 
-def list_files_in_folder(service, folder_id):
+API_URL = "https://otd.delhi.gov.in/api/realtime/VehiclePositions.pb"
 
-    query = (
-        f"'{folder_id}' in parents "
-        "and trashed = false"
+
+def collect_vehicle_data(api_key):
+
+    print("Fetching Delhi bus realtime data...")
+
+    response = requests.get(
+        API_URL,
+        params={"key": api_key},
+        timeout=60
     )
 
-    results = service.files().list(
-        q=query,
-        spaces="drive",
-        fields="files(id,name,mimeType)",
-        orderBy="name"
-    ).execute()
+    response.raise_for_status()
 
-    return results.get("files", [])
+    feed = gtfs_realtime_pb2.FeedMessage()
+    feed.ParseFromString(response.content)
 
-
-def download_file(service, file_id, file_name):
-
-    request = service.files().get_media(
-        fileId=file_id
+    print(
+        "Entities received:",
+        len(feed.entity)
     )
 
-    buffer = io.BytesIO()
+    records = []
 
-    downloader = MediaIoBaseDownload(
-        buffer,
-        request
-    )
+    for entity in feed.entity:
 
-    done = False
+        if not entity.HasField("vehicle"):
+            continue
 
-    while not done:
+        vehicle = entity.vehicle
 
-        _, done = downloader.next_chunk()
+        trip = vehicle.trip
+        position = vehicle.position
+        vehicle_descriptor = vehicle.vehicle
 
-    buffer.seek(0)
+        records.append({
+            "entity_id": entity.id,
 
-    return pd.read_csv(buffer)
+            "trip_trip_id": (
+                trip.trip_id
+                if trip.HasField("trip_id")
+                else ""
+            ),
 
+            "trip_start_time": (
+                trip.start_time
+                if trip.HasField("start_time")
+                else ""
+            ),
 
-def upload_or_replace(
-    service,
-    file_path,
-    file_name,
-    folder_id
-):
+            "trip_start_date": (
+                trip.start_date
+                if trip.HasField("start_date")
+                else ""
+            ),
 
-    query = (
-        f"name = '{file_name}' "
-        f"and '{folder_id}' in parents "
-        "and trashed = false"
-    )
+            "trip_schedule_relationship": (
+                str(trip.schedule_relationship)
+                if trip.HasField("schedule_relationship")
+                else ""
+            ),
 
-    results = service.files().list(
-        q=query,
-        spaces="drive",
-        fields="files(id,name)"
-    ).execute()
+            "trip_route_id": (
+                trip.route_id
+                if trip.HasField("route_id")
+                else ""
+            ),
 
-    existing = results.get("files", [])
+            "position_latitude": (
+                position.latitude
+                if position.HasField("latitude")
+                else ""
+            ),
 
-    if existing:
+            "position_longitude": (
+                position.longitude
+                if position.HasField("longitude")
+                else ""
+            ),
 
-        file_id = existing[0]["id"]
+            "position_speed": (
+                position.speed
+                if position.HasField("speed")
+                else ""
+            ),
 
-        from googleapiclient.http import MediaFileUpload
+            "timestamp": (
+                vehicle.timestamp
+                if vehicle.HasField("timestamp")
+                else ""
+            ),
 
-        media = MediaFileUpload(
-            file_path,
-            mimetype="text/csv",
-            resumable=True
-        )
+            "vehicle_id": (
+                vehicle_descriptor.id
+                if vehicle_descriptor.HasField("id")
+                else ""
+            ),
 
-        updated = service.files().update(
-            fileId=file_id,
-            media_body=media,
-            fields="id,name"
-        ).execute()
+            "vehicle_label": (
+                vehicle_descriptor.label
+                if vehicle_descriptor.HasField("label")
+                else ""
+            )
+        })
 
-        return updated
-
-    return upload_csv(
-        service,
-        file_path,
-        file_name,
-        folder_id
-    )
+    return pd.DataFrame(records)
 
 
 def main():
 
-    india = ZoneInfo("Asia/Kolkata")
+    api_key = os.environ.get("DELHI_API_KEY")
 
+    if not api_key:
+        raise Exception(
+            "DELHI_API_KEY environment variable is missing."
+        )
+
+    india = ZoneInfo("Asia/Kolkata")
     now = datetime.now(india)
 
-    target_date = now.date()
-
-    date_folder_name = target_date.strftime(
-        "%d %b %Y"
+    date_folder_name = now.strftime("%d %b %Y")
+    snapshot_filename = (
+        f"snapshot_{now.strftime('%H-%M-%S')}.csv"
     )
 
-    final_filename = (
-        f"Delhi Bus - "
-        f"{date_folder_name}.csv"
+    # --------------------------------------------------
+    # Collect data
+    # --------------------------------------------------
+
+    df = collect_vehicle_data(api_key)
+
+    if df.empty:
+        print("No vehicle data received.")
+
+        return
+
+    print(
+        "Records collected:",
+        len(df)
     )
+
+    # --------------------------------------------------
+    # Save temporary CSV
+    # --------------------------------------------------
+
+    os.makedirs(
+        "temp",
+        exist_ok=True
+    )
+
+    local_path = os.path.join(
+        "temp",
+        snapshot_filename
+    )
+
+    df.to_csv(
+        local_path,
+        index=False
+    )
+
+    print(
+        "Temporary CSV created:",
+        local_path
+    )
+
+    # --------------------------------------------------
+    # Connect to Google Drive
+    # --------------------------------------------------
 
     print("Connecting to Google Drive...")
 
@@ -136,146 +202,33 @@ def main():
         main_folder_id
     )
 
-    final_folder_id = find_folder(
-        service,
-        "Final",
-        main_folder_id
-    )
+    # --------------------------------------------------
+    # Get/create today's date folder
+    # --------------------------------------------------
 
-    date_folder_id = find_folder(
+    date_folder_id = get_or_create_folder(
         service,
         date_folder_name,
         raw_folder_id
     )
 
-    print(
-        f"Reading snapshots for: "
-        f"{date_folder_name}"
-    )
+    # --------------------------------------------------
+    # Upload snapshot
+    # --------------------------------------------------
 
-    files = list_files_in_folder(
+    uploaded = upload_csv(
         service,
+        local_path,
+        snapshot_filename,
         date_folder_id
     )
 
-    csv_files = [
-        file
-        for file in files
-        if file["name"].endswith(".csv")
-    ]
-
-    print(
-        "Snapshots found:",
-        len(csv_files)
-    )
-
-    if not csv_files:
-
-        print("No CSV snapshots found.")
-
-        return
-
-    dataframes = []
-
-    for file in csv_files:
-
-        print(
-            "Reading:",
-            file["name"]
-        )
-
-        df = download_file(
-            service,
-            file["id"],
-            file["name"]
-        )
-
-        dataframes.append(df)
-
-    combined = pd.concat(
-        dataframes,
-        ignore_index=True
-    )
-
-    records_before = len(combined)
-
-    if (
-        "entity_id" in combined.columns
-        and "timestamp" in combined.columns
-    ):
-
-        combined = combined.drop_duplicates(
-            subset=[
-                "entity_id",
-                "timestamp"
-            ]
-        )
-
-        combined = combined.sort_values(
-            [
-                "entity_id",
-                "timestamp"
-            ]
-        )
-
-    else:
-
-        combined = combined.drop_duplicates()
-
-    records_after = len(combined)
-
-    os.makedirs(
-        "temp",
-        exist_ok=True
-    )
-
-    local_path = os.path.join(
-        "temp",
-        final_filename
-    )
-
-    combined.to_csv(
-        local_path,
-        index=False
-    )
-
     print()
-    print("Compilation successful!")
+    print("Collection successful!")
     print("Date:", date_folder_name)
-    print("Snapshots:", len(csv_files))
-    print(
-        "Records before deduplication:",
-        records_before
-    )
-    print(
-        "Final records:",
-        records_after
-    )
-    print(
-        "Duplicates removed:",
-        records_before - records_after
-    )
-
-    print()
-    print("Uploading final CSV...")
-
-    uploaded = upload_or_replace(
-        service,
-        local_path,
-        final_filename,
-        final_folder_id
-    )
-
-    print()
-    print("Final upload successful!")
-    print(
-        "Google Drive file:",
-        uploaded["name"]
-    )
-    print(
-        "File ID:",
-        uploaded["id"]
-    )
+    print("Records:", len(df))
+    print("Saved:", snapshot_filename)
+    print("Google Drive file ID:", uploaded["id"])
 
 
 if __name__ == "__main__":
