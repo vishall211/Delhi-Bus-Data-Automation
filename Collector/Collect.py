@@ -110,8 +110,7 @@ def main():
 
     now = datetime.now(india)
 
-    # Compile the previous completed Indian calendar day.
-    target_date = now.date() - timedelta(days=1)
+    target_date = now.date()
 
     date_folder_name = target_date.strftime(
         "%d %b %Y"
