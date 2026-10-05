@@ -2,14 +2,10 @@ import os
 import json
 import io
 
-from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
-
-# ============================================================
-# GOOGLE DRIVE AUTHENTICATION
-# ============================================================
 
 SCOPES = [
     "https://www.googleapis.com/auth/drive"
@@ -18,12 +14,18 @@ SCOPES = [
 
 def get_drive_service():
 
-    credentials_json = os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"]
+    token_json = os.environ.get("GOOGLE_DRIVE_TOKEN_JSON")
 
-    credentials = service_account.Credentials.from_service_account_info(
-        json.loads(credentials_json),
-        scopes=SCOPES
-    )
+    if token_json:
+        credentials = Credentials.from_authorized_user_info(
+            json.loads(token_json),
+            SCOPES
+        )
+    else:
+        credentials = Credentials.from_authorized_user_file(
+            "token.json",
+            SCOPES
+        )
 
     return build(
         "drive",
@@ -31,10 +33,6 @@ def get_drive_service():
         credentials=credentials
     )
 
-
-# ============================================================
-# FIND FOLDER
-# ============================================================
 
 def find_folder(service, folder_name, parent_id=None):
 
@@ -64,10 +62,6 @@ def find_folder(service, folder_name, parent_id=None):
     return files[0]["id"]
 
 
-# ============================================================
-# CREATE FOLDER
-# ============================================================
-
 def create_folder(service, folder_name, parent_id):
 
     metadata = {
@@ -84,15 +78,7 @@ def create_folder(service, folder_name, parent_id):
     return folder["id"]
 
 
-# ============================================================
-# GET OR CREATE FOLDER
-# ============================================================
-
-def get_or_create_folder(
-    service,
-    folder_name,
-    parent_id
-):
+def get_or_create_folder(service, folder_name, parent_id):
 
     try:
 
@@ -111,21 +97,9 @@ def get_or_create_folder(
         )
 
 
-# ============================================================
-# UPLOAD CSV
-# ============================================================
+def upload_csv(service, file_path, file_name, folder_id):
 
-def upload_csv(
-    service,
-    file_path,
-    file_name,
-    folder_id
-):
-
-    with open(
-        file_path,
-        "rb"
-    ) as file:
+    with open(file_path, "rb") as file:
 
         media = MediaIoBaseUpload(
             io.BytesIO(file.read()),
