@@ -80,14 +80,23 @@ query = (
     "and trashed = false"
 )
 
-results = service.files().list(
-    q=query,
-    spaces="drive",
-    fields="files(id,name)",
-    pageSize=1000
-).execute()
+files = []
+page_token = None
 
-files = results.get("files", [])
+while True:
+    results = service.files().list(
+        q=query,
+        spaces="drive",
+        fields="nextPageToken, files(id,name)",
+        pageSize=1000,
+        pageToken=page_token
+    ).execute()
+
+    files.extend(results.get("files", []))
+    page_token = results.get("nextPageToken")
+
+    if not page_token:
+        break
 
 print("Found", len(files), "snapshot files.")
 

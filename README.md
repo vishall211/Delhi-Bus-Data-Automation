@@ -4,33 +4,35 @@ Automated pipeline that collects real-time GPS positions of Delhi buses using th
 
 ## How It Works
 
-The pipeline has two stages:
+The pipeline consists of two stages:
 
-1. **Collector** — Fetches live vehicle positions from the Delhi transport API (GTFS-RT protobuf), parses them into a CSV snapshot, saves it locally, and uploads it to Google Drive.
+1. **Collector** — Fetches live vehicle positions from the Delhi transport API (GTFS-RT protobuf), parses them into a CSV snapshot, saves it temporarily, and uploads it to Google Drive under `Delhi Bus Data Automation/Raw/<DD Mon YYYY>/`.
+2. **Compiler** — Reads all raw snapshots for today directly from Google Drive, removes duplicate records (`entity_id` + `timestamp`), sorts the consolidated dataset, and uploads a daily final CSV to Google Drive under `Delhi Bus Data Automation/Final/Delhi Bus - <DD Mon YYYY>.csv`.
 
-2. **Compiler** — Reads all raw snapshots for the day, removes duplicate records, sorts by vehicle and timestamp, and produces a single consolidated CSV for the day.
+Automation runs automatically through **GitHub Actions** via webhook triggers (`repository_dispatch` from external cron services like cron-job.org) or manual triggers (`workflow_dispatch`).
 
-A **GitHub Actions workflow** runs the Collector every 5 minutes automatically.
+---
 
 ## Project Structure
 
 ```
 Delhi Bus Data Automation/
 ├── .github/workflows/
-│   └── collect.yml        # GitHub Actions workflow (runs every 5 min)
+│   └── collect.yml        # GitHub Actions workflow (collect & compile jobs)
 ├── Collector/
 │   ├── Collect.py         # Fetches API data → saves CSV → uploads to Drive
-│   └── drive.py           # Google Drive auth, folder management, upload
+│   └── drive.py           # Google Drive OAuth auth, folder management, upload
 ├── Compiler/
-│   └── Compile.py         # Combines daily snapshots → deduplicated final CSV
-├── data/                  # Local data (git-ignored)
-│   ├── raw/               # Raw snapshots organized by date
-│   └── final/             # Compiled daily CSVs
-├── temp/                  # Temporary files (git-ignored)
+│   └── Compile.py         # Downloads daily snapshots from Drive → deduplicated final CSV
+├── data/                  # Local data directory (git-ignored)
+├── temp/                  # Temporary snapshot directory (git-ignored)
+├── temp_compile/          # Temporary compilation directory (git-ignored)
 ├── .gitignore
 ├── requirements.txt
 └── README.md
 ```
+
+---
 
 ## Setup
 
@@ -54,72 +56,83 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Set environment variables
+### 4. Authentication & Environment Variables
 
-The project requires two environment variables:
+The project uses OAuth 2.0 to access Google Drive and an API key from Delhi Open Transit Data.
 
 | Variable | Description |
 |----------|-------------|
 | `DELHI_API_KEY` | API key from [otd.delhi.gov.in](https://otd.delhi.gov.in) for accessing GTFS-RT feeds |
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | Full JSON content of a Google Cloud service account key (with Drive API access) |
+| `GOOGLE_DRIVE_TOKEN_B64` | Base64-encoded string of the OAuth `token.json` file (used for GitHub Actions / headless runs) |
 
-For local development, export them in your shell:
-
+#### Local Development
+For local runs, place your generated `token.json` in the project root (it is git-ignored):
 ```bash
 export DELHI_API_KEY="your-api-key"
-export GOOGLE_SERVICE_ACCOUNT_JSON='{"type":"service_account", ...}'
 ```
+*(If `GOOGLE_DRIVE_TOKEN_B64` is not set, `drive.py` automatically falls back to reading `token.json` from the root directory).*
 
-For GitHub Actions, add them as **repository secrets** with the same names.
+#### GitHub Actions
+For automated runs on GitHub Actions, add these as **Repository Secrets** in **Settings → Secrets and variables → Actions**:
+1. `DELHI_API_KEY`: Your Delhi Open Transit API key.
+2. `GOOGLE_DRIVE_TOKEN_B64`: Base64-encoded content of your `token.json`. To generate this string locally:
+   ```bash
+   base64 -i token.json | tr -d '\n'
+   ```
 
-### 5. Google Drive setup
+### 5. Google Drive Folder Structure
 
-Create this folder structure in Google Drive and **share it with the service account email**:
+Ensure the following folder structure exists in your Google Drive:
 
 ```
 Delhi Bus Data Automation/
-└── Raw/
+├── Raw/
+└── Final/
 ```
 
-The Collector will automatically create date-wise subfolders inside `Raw/`.
+- The Collector will automatically create date-wise subfolders inside `Raw/` (e.g. `Raw/08 Oct 2026/`).
+- The Compiler will upload the consolidated daily file to `Final/`.
+
+---
 
 ## Usage
 
-### Collect a snapshot
+### Run Collector Locally
 
 ```bash
-cd Collector
-python Collect.py
+python Collector/Collect.py
 ```
 
 This will:
 - Fetch current bus positions from the Delhi API
 - Save a timestamped CSV to `temp/`
-- Upload the CSV to Google Drive under `Raw/<date>/`
+- Upload the CSV to Google Drive under `Delhi Bus Data Automation/Raw/<date>/`
 
-### Compile daily data
+### Run Compiler Locally
 
 ```bash
 python Compiler/Compile.py
 ```
 
 This will:
-- Read all snapshots from `data/raw/<today>/`
+- Query Google Drive for all snapshots in `Delhi Bus Data Automation/Raw/<today>/`
+- Download and combine all snapshot records
 - Remove duplicate records (by `entity_id` + `timestamp`)
-- Save a consolidated CSV to `data/final/Delhi Bus - DD MMM YYYY.csv`
+- Upload the consolidated file to `Delhi Bus Data Automation/Final/Delhi Bus - <date>.csv`
+
+---
 
 ## Data Schema
 
-Each snapshot contains these columns:
+Each snapshot contains the following columns:
 
 | Column | Description |
 |--------|-------------|
 | `entity_id` | Unique bus identifier (vehicle registration number) |
-| `collected_at` | ISO timestamp of when the data was collected |
 | `trip_trip_id` | GTFS trip ID |
 | `trip_start_time` | Scheduled trip start time |
-| `trip_start_date` | Trip date (YYYYMMDD) |
-| `trip_schedule_relationship` | Schedule relationship (0 = scheduled, 1 = added) |
+| `trip_start_date` | Trip date (`YYYYMMDD`) |
+| `trip_schedule_relationship` | Schedule relationship (`0` = scheduled, `1` = added) |
 | `trip_route_id` | GTFS route ID |
 | `position_latitude` | Bus latitude |
 | `position_longitude` | Bus longitude |
@@ -128,13 +141,19 @@ Each snapshot contains these columns:
 | `vehicle_id` | Vehicle identifier |
 | `vehicle_label` | Vehicle display label |
 
-## GitHub Actions
+---
 
-The workflow (`.github/workflows/collect.yml`) runs every 5 minutes via cron. It uses repository secrets `DELHI_API_KEY` and `GOOGLE_SERVICE_ACCOUNT_JSON` to authenticate with the Delhi API and Google Drive respectively.
+## GitHub Actions & Automated Scheduling
 
-You can also trigger it manually from the **Actions** tab on GitHub using the `workflow_dispatch` trigger.
+The workflow ([`.github/workflows/collect.yml`](.github/workflows/collect.yml)) supports:
+
+1. **`workflow_dispatch`**: Trigger data collection manually anytime from GitHub's **Actions** tab.
+2. **`repository_dispatch`**: Triggered externally via GitHub API webhooks:
+   - Event `collect`: Runs `Collector/Collect.py` (e.g. every 5 minutes from [cron-job.org](https://cron-job.org)).
+   - Event `compile`: Runs `Compiler/Compile.py` (e.g. nightly at 23:55 IST).
+
+---
 
 ## License
 
 This project is for personal/educational use.
-
