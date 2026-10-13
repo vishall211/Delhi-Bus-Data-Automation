@@ -68,9 +68,9 @@ This master document provides a comprehensive, unified history of all architectu
 ### Phase 3: Oracle Cloud Always Free VM & Native Cron (13 Oct 2026 - Present)
 *Full details: [`progress/03_Phase3_Oracle_Cloud_VM_2026-10-13.md`](03_Phase3_Oracle_Cloud_VM_2026-10-13.md)*
 
-- **Why Chosen**:
-  - Oracle Cloud Infrastructure provides an **Always Free Tier** that does not expire after a trial period.
-  - Running a dedicated VM removes all minute-based billing caps.
+- **Why Chosen (In Simple Terms)**:
+  - **Linux Cron**: Operates like an automatic background alarm clock on the server, waking up every 5 minutes and triggering the Python collection script without human intervention.
+  - **Oracle Cloud (OCI)**: Provides an **Always Free** cloud computer running 24/7 in Mumbai that never expires, eliminates GitHub's 2,000-minute billing quota entirely, and allows data collection to proceed even when your personal laptop is powered off.
 - **VM Specifications**:
   - **Instance**: `delhi-bus-collector`
   - **Shape**: `VM.Standard.E2.1.Micro` (1 AMD OCPU, 1 GB RAM, Always Free)

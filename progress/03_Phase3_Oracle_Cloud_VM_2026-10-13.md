@@ -6,6 +6,21 @@
 
 ---
 
+## Why OCI and Linux Cron?
+
+### 1. What is Linux Cron?
+Think of **Linux Cron** as an **automatic alarm clock** built into every Linux computer:
+- Just like an alarm on your phone rings every morning, **Cron** tells the computer: *"Wake up and run this Python collection script every 5 minutes"* and *"Run the daily compilation script at 23:55 IST"*.
+- It runs quietly in the background 24/7 without needing anyone to press buttons or keep a window open.
+
+### 2. Why Oracle Cloud Infrastructure (OCI)?
+We needed a computer that stays turned on **24 hours a day, 7 days a week, 365 days a year** without running on your personal laptop.
+- **100% Free Forever**: Unlike AWS (which charges you after a 12-month trial), Oracle Cloud has an **Always Free** tier that never expires.
+- **No Usage / Minute Limits**: GitHub Actions stopped working because it had a strict limit of 2,000 runner minutes/month (exhausted in 7 days). On the Oracle VM, the machine is completely yours with **zero minute caps**.
+- **Runs Completely Hands-Free**: Even when your laptop is turned off, asleep, or disconnected from the internet, the Oracle VM in Mumbai keeps collecting bus coordinates and saving them directly into your Google Drive.
+
+---
+
 ## 1. Architecture Overview
 
 ```
