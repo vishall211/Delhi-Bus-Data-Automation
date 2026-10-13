@@ -27,8 +27,14 @@ def get_drive_service():
         )
 
     else:
+        # Resolve token.json relative to project root or current working dir
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        token_path = os.path.join(base_dir, "token.json")
+        if not os.path.exists(token_path):
+            token_path = "token.json"
+
         credentials = Credentials.from_authorized_user_file(
-            "token.json",
+            token_path,
             SCOPES
         )
 

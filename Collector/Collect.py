@@ -3,11 +3,19 @@ import io
 import requests
 import pandas as pd
 
+import sys
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from google.protobuf.json_format import MessageToDict
 from google.transit import gtfs_realtime_pb2
+
+# Allow importing drive.py and referencing paths independent of working directory
+COLLECTOR_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.dirname(COLLECTOR_DIR)
+
+if COLLECTOR_DIR not in sys.path:
+    sys.path.insert(0, COLLECTOR_DIR)
 
 from drive import (
     get_drive_service,
@@ -163,13 +171,14 @@ def main():
     # Save temporary CSV
     # --------------------------------------------------
 
+    temp_dir = os.path.join(PROJECT_DIR, "temp")
     os.makedirs(
-        "temp",
+        temp_dir,
         exist_ok=True
     )
 
     local_path = os.path.join(
-        "temp",
+        temp_dir,
         snapshot_filename
     )
 
