@@ -2,6 +2,10 @@
 
 Automated pipeline that collects real-time GPS positions of Delhi buses using the [Delhi GTFS-Realtime API](https://otd.delhi.gov.in) and uploads snapshots to Google Drive.
 
+The pipeline runs 24/7 on an **Oracle Cloud Infrastructure (OCI) Always Free VM** using Linux `cron`, with zero recurring costs.
+
+*(For detailed architectural decision records and the evolution history from GitHub Actions to Oracle VM, see [`progress/ARCHITECTURE_LOG.md`](progress/ARCHITECTURE_LOG.md)).*
+
 ## How It Works
 
 The pipeline consists of two stages:
@@ -9,7 +13,7 @@ The pipeline consists of two stages:
 1. **Collector** — Fetches live vehicle positions from the Delhi transport API (GTFS-RT protobuf), parses them into a CSV snapshot, saves it temporarily, and uploads it to Google Drive under `Delhi Bus Data Automation/Raw/<DD Mon YYYY>/`.
 2. **Compiler** — Reads all raw snapshots for today directly from Google Drive, removes duplicate records (`entity_id` + `timestamp`), sorts the consolidated dataset, and uploads a daily final CSV to Google Drive under `Delhi Bus Data Automation/Final/Delhi Bus - <DD Mon YYYY>.csv`.
 
-Automation runs automatically through **GitHub Actions** via webhook triggers (`repository_dispatch` from external cron services like cron-job.org) or manual triggers (`workflow_dispatch`).
+Automation runs automatically 24/7 on an Oracle Cloud Linux instance via `cron` (every 5 minutes for collection, and 23:55 IST for compilation).
 
 ---
 
@@ -17,8 +21,13 @@ Automation runs automatically through **GitHub Actions** via webhook triggers (`
 
 ```
 Delhi Bus Data Automation/
+├── progress/
+│   ├── 01_Phase1_GitHub_Actions_Cron_2026-10-05.md # Initial GitHub Actions + Service Account setup
+│   ├── 02_Phase2_External_Cron_OAuth_2026-10-06.md # cron-job.org dispatch & quota incident analysis
+│   ├── 03_Phase3_Oracle_Cloud_VM_2026-10-13.md     # Current Oracle Cloud VM production deployment
+│   └── SUMMARY_PROGRESS.md                         # Master summary covering all evolution milestones
 ├── .github/workflows/
-│   └── collect.yml        # GitHub Actions workflow (collect & compile jobs)
+│   └── collect.yml        # GitHub Actions workflow (legacy / fallback)
 ├── Collector/
 │   ├── Collect.py         # Fetches API data → saves CSV → uploads to Drive
 │   └── drive.py           # Google Drive OAuth auth, folder management, upload
