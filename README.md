@@ -145,7 +145,7 @@ Each snapshot contains the following columns:
 
 ## GitHub Actions & Automated Scheduling
 
-The workflow ([`.github/workflows/collect.yml`](.github/workflows/collect.yml)) uses `runs-on: self-hosted`, which incurs **0 GitHub Actions minutes** and bypasses monthly runner quota limits:
+The workflow ([`.github/workflows/collect.yml`](.github/workflows/collect.yml)) supports:
 
 1. **`workflow_dispatch`**: Trigger data collection manually anytime from GitHub's **Actions** tab.
 2. **`repository_dispatch`**: Triggered externally via GitHub API webhooks:

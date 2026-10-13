@@ -9,7 +9,7 @@ on:
 jobs:
   collect:
     if: github.event_name == 'workflow_dispatch' || github.event.action == 'collect'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
@@ -31,7 +31,7 @@ jobs:
 
   compile:
     if: github.event_name == 'repository_dispatch' && github.event.action == 'compile'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
